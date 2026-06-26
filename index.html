@@ -114,7 +114,7 @@ textarea{resize:vertical;min-height:64px}
 .p-step-lbl{font-size:10px;font-weight:700;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:9px}
 .p-step-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .p-step-col{display:flex;flex-direction:column;gap:7px}
-.p-photo{height:250px;border-radius:8px;overflow:hidden;background:#eeebe6;position:relative;cursor:grab;flex-shrink:0}
+.p-photo{height:300px;border-radius:8px;overflow:hidden;background:#eeebe6;position:relative;cursor:grab;flex-shrink:0}
 .p-photo:active{cursor:grabbing}
 .p-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block;user-select:none;pointer-events:none}
 .p-photo-empty{height:90px;cursor:default;display:flex;align-items:center;justify-content:center}
@@ -675,7 +675,7 @@ function photoCell(key,label){
     const pos=S.photoPos[key]||{x:50,y:50};
     return`<div class="p-photo" data-photo-key="${key}"><img src="${src}" alt="" style="object-position:${pos.x}% ${pos.y}%" draggable="false"><div class="p-photo-hint">✥ Trascina per riposizionare</div></div>`;
   }
-  return`<div class="p-photo p-photo-empty"><div class="p-photo-ph">📷<br><span style="font-size:9px">${esc(label)}</span></div></div>`;
+  return'';
 }
 
 // ======================================================
