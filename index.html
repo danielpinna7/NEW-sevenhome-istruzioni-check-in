@@ -114,9 +114,8 @@ textarea{resize:vertical;min-height:64px}
 .p-step-lbl{font-size:10px;font-weight:700;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:9px}
 .p-step-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .p-step-col{display:flex;flex-direction:column;gap:7px}
-.p-photo{height:300px;border-radius:8px;overflow:hidden;background:#eeebe6;position:relative;cursor:grab;flex-shrink:0}
+.p-photo{height:300px;border-radius:8px;overflow:hidden;background:#eeebe6 center/cover no-repeat;position:relative;cursor:grab;flex-shrink:0}
 .p-photo:active{cursor:grabbing}
-.p-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block;user-select:none;pointer-events:none}
 .p-photo-empty{height:90px;cursor:default;display:flex;align-items:center;justify-content:center}
 .p-photo-ph{font-size:11px;color:#ccc;text-align:center;padding:8px}
 .p-photo-hint{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.32);color:rgba(255,255,255,.8);font-size:9px;text-align:center;padding:3px;pointer-events:none;opacity:0;transition:opacity .2s}
@@ -673,7 +672,7 @@ function photoCell(key,label){
   const src=photo(key);
   if(src){
     const pos=S.photoPos[key]||{x:50,y:50};
-    return`<div class="p-photo" data-photo-key="${key}"><img src="${src}" alt="" style="object-position:${pos.x}% ${pos.y}%" draggable="false"><div class="p-photo-hint">✥ Trascina per riposizionare</div></div>`;
+    return`<div class="p-photo" data-photo-key="${key}" style="background-image:url('${src}');background-position:${pos.x}% ${pos.y}%"><div class="p-photo-hint">✥ Trascina per riposizionare</div></div>`;
   }
   return'';
 }
@@ -770,12 +769,16 @@ function render(){
   const mapsLink=v('f-maps');
   const captionHtml=`<div class="p-map-caption"><span>📍</span>&nbsp;${esc(t.cap)}</div>`;
   if(mapSrc){
+    mapEl.style.backgroundImage=`url('${mapSrc}')`;
+    mapEl.style.backgroundSize='cover';
+    mapEl.style.backgroundPosition='center';
     if(mapsLink){
-      mapEl.innerHTML=`${captionHtml}<a href="${esc(mapsLink)}" target="_blank" rel="noopener"><img src="${mapSrc}" alt="mappa"></a>`;
+      mapEl.innerHTML=`${captionHtml}<a href="${esc(mapsLink)}" target="_blank" rel="noopener" style="position:absolute;inset:0;display:block;z-index:2"></a>`;
     } else {
-      mapEl.innerHTML=`${captionHtml}<img src="${mapSrc}" alt="mappa" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block">`;
+      mapEl.innerHTML=captionHtml;
     }
   } else {
+    mapEl.style.backgroundImage='';
     mapEl.innerHTML=`<div class="p-map-ph"><span style="font-size:36px">🗺️</span><span>Carica l'immagine della mappa</span></div>${captionHtml}`;
   }
 
@@ -1247,8 +1250,7 @@ document.addEventListener('mousemove',e=>{
   const newX=Math.max(0,Math.min(100,_drag.startPosX-(dx/_drag.cW)*100));
   const newY=Math.max(0,Math.min(100,_drag.startPosY-(dy/_drag.cH)*100));
   S.photoPos[_drag.key]={x:newX,y:newY};
-  const img=_drag.photoEl.querySelector('img');
-  if(img)img.style.objectPosition=`${newX}% ${newY}%`;
+  _drag.photoEl.style.backgroundPosition=`${newX}% ${newY}%`;
 });
 document.addEventListener('mouseup',()=>{
   if(_drag){_drag.photoEl.style.cursor='grab';_drag=null;}
