@@ -114,12 +114,17 @@ textarea{resize:vertical;min-height:64px}
 .p-step-lbl{font-size:10px;font-weight:700;color:#C9A84C;text-transform:uppercase;letter-spacing:1px;margin-bottom:9px}
 .p-step-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .p-step-col{display:flex;flex-direction:column;gap:7px}
-.p-photo{height:250px;border-radius:8px;overflow:hidden;background:#eeebe6 center/cover no-repeat;position:relative;cursor:grab;flex-shrink:0}
+.p-photo{height:290px;border-radius:8px;overflow:hidden;background:#eeebe6;position:relative;cursor:grab;flex-shrink:0;user-select:none}
 .p-photo:active{cursor:grabbing}
+.p-photo-img{position:absolute;width:100%;height:auto;left:0;top:0;transform-origin:0 0;pointer-events:none;user-select:none;display:block}
 .p-photo-empty{height:90px;cursor:default;display:flex;align-items:center;justify-content:center}
 .p-photo-ph{font-size:11px;color:#ccc;text-align:center;padding:8px}
 .p-photo-hint{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.32);color:rgba(255,255,255,.8);font-size:9px;text-align:center;padding:3px;pointer-events:none;opacity:0;transition:opacity .2s}
 .p-photo:hover .p-photo-hint{opacity:1}
+.p-photo-zoom{position:absolute;top:5px;right:5px;display:none;gap:3px;z-index:10}
+.p-photo:hover .p-photo-zoom{display:flex}
+.p-zoom-btn{width:22px;height:22px;border-radius:5px;border:none;background:rgba(26,26,46,.65);color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+.p-zoom-btn:hover{background:rgba(26,26,46,.9)}
 .p-text{font-size:11.5px;color:#555;line-height:1.55;padding:0 2px;min-height:28px}
 
 .p-notes{background:#fffdf5;border:1.5px solid #f0e8c8;border-radius:8px;padding:13px 15px;margin-top:12px}
@@ -648,7 +653,7 @@ const S = {
   lang:'IT',
   logo:null,
   photos:{},
-  photoPos:{},
+  photoState:{},
   currentProjectId: null,
   currentProjectName: null,
 };
@@ -671,10 +676,68 @@ function photo(key){return S.photos[key]||null;}
 function photoCell(key,label){
   const src=photo(key);
   if(src){
-    const pos=S.photoPos[key]||{x:50,y:50};
-    return`<div class="p-photo" data-photo-key="${key}" style="background-image:url('${src}');background-position:${pos.x}% ${pos.y}%"><div class="p-photo-hint">✥ Trascina per riposizionare</div></div>`;
+    return`<div class="p-photo" data-photo-key="${key}"><img class="p-photo-img" src="${src}" draggable="false" onload="initPhotoImg(this,'${key}')"><div class="p-photo-hint">✥ Trascina &nbsp;·&nbsp; Scroll per zoom</div><div class="p-photo-zoom"><button class="p-zoom-btn" onclick="zoomPhoto('${key}',1.15)" title="Zoom +">+</button><button class="p-zoom-btn" onclick="zoomPhoto('${key}',0.87)" title="Zoom −">−</button><button class="p-zoom-btn" onclick="resetPhoto('${key}')" title="Reset" style="font-size:9px">↺</button></div></div>`;
   }
   return'';
+}
+
+function initPhotoImg(img,key){
+  const container=img.parentElement;
+  const cW=container.offsetWidth;
+  const cH=container.offsetHeight;
+  if(S.photoState[key]&&S.photoState[key].initialized){
+    const st=S.photoState[key];
+    st.cW=cW;st.cH=cH;
+    _applyPhotoT(img,st);
+  } else {
+    const imgH=cW*(img.naturalHeight/img.naturalWidth);
+    const minSc=Math.max(1,cH/imgH);
+    const scaledH=imgH*minSc;
+    const ty=(cH-scaledH)/2;
+    S.photoState[key]={tx:0,ty,scale:minSc,cW,cH,initialized:true};
+    _applyPhotoT(img,S.photoState[key]);
+  }
+}
+
+function _applyPhotoT(img,st){
+  img.style.transform=`translate(${st.tx}px,${st.ty}px) scale(${st.scale})`;
+}
+
+function _clampPhoto(img,st,tx,ty,scale){
+  const cW=st.cW,cH=st.cH;
+  const imgW=cW;
+  const imgH=cW*(img.naturalHeight/img.naturalWidth);
+  const sW=imgW*scale,sH=imgH*scale;
+  return{
+    tx:Math.max(Math.min(0,cW-sW),Math.min(0,tx)),
+    ty:Math.max(Math.min(0,cH-sH),Math.min(0,ty))
+  };
+}
+
+function zoomPhoto(key,factor){
+  const photoEl=document.querySelector(`.p-photo[data-photo-key="${key}"]`);
+  if(!photoEl)return;
+  const img=photoEl.querySelector('.p-photo-img');
+  const st=S.photoState[key];
+  if(!img||!st)return;
+  const cW=st.cW,cH=st.cH;
+  const imgH=cW*(img.naturalHeight/img.naturalWidth);
+  const minSc=Math.max(1,cH/imgH);
+  const newScale=Math.max(minSc,Math.min(6,st.scale*factor));
+  const cx=cW/2,cy=cH/2;
+  const newTx=cx-(cx-st.tx)*(newScale/st.scale);
+  const newTy=cy-(cy-st.ty)*(newScale/st.scale);
+  const cl=_clampPhoto(img,st,newTx,newTy,newScale);
+  st.scale=newScale;st.tx=cl.tx;st.ty=cl.ty;
+  _applyPhotoT(img,st);
+}
+
+function resetPhoto(key){
+  delete S.photoState[key];
+  const photoEl=document.querySelector(`.p-photo[data-photo-key="${key}"]`);
+  if(!photoEl)return;
+  const img=photoEl.querySelector('.p-photo-img');
+  if(img){img.style.transform='';initPhotoImg(img,key);}
 }
 
 // ======================================================
@@ -768,17 +831,15 @@ function render(){
   const mapSrc=photo('mapPhoto');
   const mapsLink=v('f-maps');
   const captionHtml=`<div class="p-map-caption"><span>📍</span>&nbsp;${esc(t.cap)}</div>`;
+  mapEl.style.backgroundImage='';
   if(mapSrc){
-    mapEl.style.backgroundImage=`url('${mapSrc}')`;
-    mapEl.style.backgroundSize='cover';
-    mapEl.style.backgroundPosition='center';
+    const mImgStyle='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:100%;min-height:100%;max-width:none;max-height:none;display:block;pointer-events:none';
     if(mapsLink){
-      mapEl.innerHTML=`${captionHtml}<a href="${esc(mapsLink)}" target="_blank" rel="noopener" style="position:absolute;inset:0;display:block;z-index:2"></a>`;
+      mapEl.innerHTML=`${captionHtml}<img src="${mapSrc}" style="${mImgStyle}" alt="mappa"><a href="${esc(mapsLink)}" target="_blank" rel="noopener" style="position:absolute;inset:0;display:block;z-index:3"></a>`;
     } else {
-      mapEl.innerHTML=captionHtml;
+      mapEl.innerHTML=`${captionHtml}<img src="${mapSrc}" style="${mImgStyle}" alt="mappa">`;
     }
   } else {
-    mapEl.style.backgroundImage='';
     mapEl.innerHTML=`<div class="p-map-ph"><span style="font-size:36px">🗺️</span><span>Carica l'immagine della mappa</span></div>${captionHtml}`;
   }
 
@@ -899,32 +960,6 @@ async function generatePDF(){
       el.scrollIntoView({block:'nearest'});
       await new Promise(r=>setTimeout(r,80));
 
-      // Inject real <img> elements so html2canvas renders photos correctly
-      // (html2canvas doesn't support background-size:cover reliably)
-      const injected=[];
-      el.querySelectorAll('[data-photo-key]').forEach(div=>{
-        const bg=div.style.backgroundImage;
-        if(!bg||bg==='none'||bg==='')return;
-        const url=bg.replace(/^url\(["']?/,'').replace(/["']?\)$/,'');
-        const pos=div.style.backgroundPosition||'50% 50%';
-        const img=document.createElement('img');
-        img.src=url;
-        img.style.cssText=`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:100%;min-height:100%;max-width:none;max-height:none;pointer-events:none`;
-        div.appendChild(img);
-        injected.push({parent:div,el:img});
-      });
-      const mapWrap=el.querySelector('.p-map-wrap');
-      if(mapWrap&&mapWrap.style.backgroundImage&&mapWrap.style.backgroundImage!==''){
-        const bg=mapWrap.style.backgroundImage;
-        const url=bg.replace(/^url\(["']?/,'').replace(/["']?\)$/,'');
-        const img=document.createElement('img');
-        img.src=url;
-        img.style.cssText=`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);min-width:100%;min-height:100%;max-width:none;max-height:none;z-index:1;pointer-events:none`;
-        mapWrap.insertBefore(img,mapWrap.firstChild);
-        injected.push({parent:mapWrap,el:img});
-      }
-      await new Promise(r=>setTimeout(r,40));
-
       // Collect all link annotations BEFORE html2canvas
       const annotations=[];
       el.querySelectorAll('a[href]').forEach(a=>{
@@ -951,9 +986,6 @@ async function generatePDF(){
         height:PX_H,
         logging:false,
       });
-
-      // Remove injected img elements
-      injected.forEach(({parent,el})=>parent.removeChild(el));
 
       const imgData=canvas.toDataURL('image/jpeg',0.95);
       if(i>0)pdf.addPage();
@@ -1145,7 +1177,7 @@ async function confirmSave(update){
   if(update && S.currentProjectId){
     const idx = list.findIndex(x=>x.id===S.currentProjectId);
     if(idx !== -1){
-      list[idx] = { ...list[idx], name, savedAt: new Date().toISOString(), lang:S.lang, logo:S.logo, photos:{...S.photos}, photoPos:{...S.photoPos}, fields, toggles };
+      list[idx] = { ...list[idx], name, savedAt: new Date().toISOString(), lang:S.lang, logo:S.logo, photos:{...S.photos}, photoState:{...S.photoState}, fields, toggles };
       S.currentProjectName = name;
       updateProjectBadge();
       await setProjects(list);
@@ -1161,7 +1193,7 @@ async function confirmSave(update){
     lang: S.lang,
     logo: S.logo,
     photos: {...S.photos},
-    photoPos: {...S.photoPos},
+    photoState: {...S.photoState},
     fields,
     toggles,
   };
@@ -1189,7 +1221,9 @@ async function loadProject(id){
 
   S.logo = p.logo || null;
   S.photos = {...(p.photos||{})};
-  S.photoPos = {...(p.photoPos||{})};
+  S.photoState = {...(p.photoState||p.photoPos||{})};
+  // Reset initialized flag so transforms are recomputed with live container sizes
+  Object.values(S.photoState).forEach(st=>{ if(st) st.initialized=true; });
 
   const logoUp = document.getElementById('logo-up');
   const logoPrev = document.getElementById('logo-prev');
@@ -1258,32 +1292,54 @@ document.addEventListener('keydown',e=>{
 });
 
 // ======================================================
-// PHOTO DRAG TO REPOSITION
+// PHOTO DRAG + ZOOM
 // ======================================================
 let _drag=null;
 document.getElementById('preview-panel').addEventListener('mousedown',e=>{
-  const photoEl=e.target.closest('.p-photo:not(.p-photo-empty)');
+  const photoEl=e.target.closest('.p-photo');
   if(!photoEl)return;
   const key=photoEl.dataset.photoKey;
   if(!key||!S.photos[key])return;
+  if(e.target.closest('.p-zoom-btn'))return;
   e.preventDefault();
-  const pos=S.photoPos[key]||{x:50,y:50};
-  const rect=photoEl.getBoundingClientRect();
-  _drag={photoEl,key,startX:e.clientX,startY:e.clientY,startPosX:pos.x,startPosY:pos.y,cW:rect.width,cH:rect.height};
+  const img=photoEl.querySelector('.p-photo-img');
+  const st=S.photoState[key];
+  if(!img||!st)return;
+  _drag={photoEl,img,key,startX:e.clientX,startY:e.clientY,startTx:st.tx,startTy:st.ty};
   photoEl.style.cursor='grabbing';
 });
 document.addEventListener('mousemove',e=>{
   if(!_drag)return;
-  const dx=e.clientX-_drag.startX;
-  const dy=e.clientY-_drag.startY;
-  const newX=Math.max(0,Math.min(100,_drag.startPosX-(dx/_drag.cW)*100));
-  const newY=Math.max(0,Math.min(100,_drag.startPosY-(dy/_drag.cH)*100));
-  S.photoPos[_drag.key]={x:newX,y:newY};
-  _drag.photoEl.style.backgroundPosition=`${newX}% ${newY}%`;
+  const dx=e.clientX-_drag.startX,dy=e.clientY-_drag.startY;
+  const st=S.photoState[_drag.key];
+  const cl=_clampPhoto(_drag.img,st,_drag.startTx+dx,_drag.startTy+dy,st.scale);
+  st.tx=cl.tx;st.ty=cl.ty;
+  _applyPhotoT(_drag.img,st);
 });
 document.addEventListener('mouseup',()=>{
   if(_drag){_drag.photoEl.style.cursor='grab';_drag=null;}
 });
+document.getElementById('preview-panel').addEventListener('wheel',e=>{
+  const photoEl=e.target.closest('.p-photo');
+  if(!photoEl)return;
+  e.preventDefault();
+  const key=photoEl.dataset.photoKey;
+  if(!key||!S.photos[key])return;
+  const img=photoEl.querySelector('.p-photo-img');
+  const st=S.photoState[key];
+  if(!img||!st)return;
+  const factor=e.deltaY>0?0.9:1.1;
+  const rect=photoEl.getBoundingClientRect();
+  const px=e.clientX-rect.left,py=e.clientY-rect.top;
+  const imgH=st.cW*(img.naturalHeight/img.naturalWidth);
+  const minSc=Math.max(1,st.cH/imgH);
+  const newScale=Math.max(minSc,Math.min(6,st.scale*factor));
+  const newTx=px-(px-st.tx)*(newScale/st.scale);
+  const newTy=py-(py-st.ty)*(newScale/st.scale);
+  const cl=_clampPhoto(img,st,newTx,newTy,newScale);
+  st.scale=newScale;st.tx=cl.tx;st.ty=cl.ty;
+  _applyPhotoT(img,st);
+},{passive:false});
 
 // ======================================================
 // CLEAR PHOTO / LOGO
