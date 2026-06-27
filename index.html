@@ -296,6 +296,31 @@ textarea{resize:vertical;min-height:64px}
 .am-df textarea{resize:vertical;min-height:72px}
 .am-dialog-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .am-loading{text-align:center;padding:50px;color:#bbb;font-size:13px;grid-column:1/-1}
+@media(max-width:640px){
+  .am-hd{padding:10px 14px;flex-wrap:wrap;gap:8px}
+  .am-hd-title{font-size:14px}
+  .am-search{width:100%;order:3;flex-basis:100%}
+  .am-hd-r{gap:6px;flex-wrap:wrap}
+  .am-sort{font-size:11px;padding:5px 8px}
+  .am-btn-gold{font-size:12px;padding:7px 12px}
+  .am-btn-close{width:30px;height:30px;font-size:15px}
+  .am-content{padding:14px}
+  .am-grid{grid-template-columns:1fr;gap:12px}
+  .am-card{padding:16px;gap:10px}
+  .am-card-icon{width:36px;height:36px;font-size:18px}
+  .am-card-name{font-size:14px}
+  .am-card-footer{flex-wrap:wrap;gap:6px}
+  .am-card-open{flex:1;text-align:center;padding:10px 12px;font-size:13px}
+  .am-card-del{width:36px;height:36px}
+  .am-detail-top{flex-direction:column;gap:12px;padding:16px}
+  .am-detail-title{font-size:16px}
+  .am-detail-actions{flex-wrap:wrap;gap:8px;width:100%}
+  .am-btn-dark,.am-btn-gold{flex:1;justify-content:center;padding:11px 12px;font-size:13px}
+  .am-files-head{grid-template-columns:1fr 70px 80px;font-size:9px;padding:8px 12px}
+  .am-files-head>div:nth-child(3){display:none}
+  .am-file-row{grid-template-columns:1fr 70px 80px;padding:11px 12px;font-size:12px}
+  .am-file-row>div:nth-child(3){display:none}
+}
 </style>
 </head>
 <body>
@@ -1406,8 +1431,7 @@ async function amRenderList(){
   <div class="am-card-footer">
     <div class="am-card-count">📎 ${cnt} file</div>
     <div style="display:flex;gap:6px">
-      ${p.state?`<button class="am-card-open" style="background:#1A1A2E;color:#C9A84C" onclick="event.stopPropagation();amLoadInBuilder('${p.id}')">📂 Builder</button>`:''}
-      <button class="am-card-open" onclick="event.stopPropagation();amOpenProject('${p.id}')">Apri →</button>
+      ${p.state?`<button class="am-card-open" onclick="event.stopPropagation();amGeneratePDF('${p.id}')">📄 Genera PDF</button>`:''}
       <button class="am-card-del" onclick="event.stopPropagation();amConfirmDelProject('${p.id}','${esc(p.name)}')" title="Elimina">🗑</button>
     </div>
   </div>
@@ -1570,6 +1594,28 @@ async function amLoadInBuilder(id){
   if(!confirm('Caricare questo progetto nel builder? I dati non salvati andranno persi.'))return;
   closeAM();
   await loadProject(id);
+}
+
+async function amGeneratePDF(id){
+  const list=await getProjects();
+  const p=list.find(x=>x.id===id);
+  if(!p||!p.state)return;
+  const st=p.state;
+  FIELD_IDS.forEach(fid=>{const el=document.getElementById(fid);if(el&&st.fields&&st.fields[fid]!==undefined)el.value=st.fields[fid];});
+  TOGGLE_IDS.forEach(tid=>{const el=document.getElementById(tid);if(el&&st.toggles&&st.toggles[tid]!==undefined)el.checked=st.toggles[tid];});
+  S.logo=st.logo||null;
+  S.photos={...(st.photos||{})};
+  S.photoState={...(st.photoState||{})};
+  Object.values(S.photoState).forEach(s=>{if(s)s.initialized=true;});
+  const logoUp=document.getElementById('logo-up');const logoPrev=document.getElementById('logo-prev');
+  if(logoUp&&logoPrev){if(S.logo){logoPrev.src=S.logo;logoUp.classList.add('has-img');}else{logoPrev.src='';logoUp.classList.remove('has-img');}}
+  document.querySelectorAll('.photo-up').forEach(wrap=>{const inp=wrap.querySelector('input[type=file]');if(!inp)return;const oc=inp.getAttribute('onchange')||'';const m=oc.match(/handlePhoto\(event,'([^']+)'\)/);if(!m)return;const key=m[1];const prev=wrap.querySelector('.up-prev');if(prev){if(S.photos[key]){prev.src=S.photos[key];wrap.classList.add('has-img');}else{prev.src='';wrap.classList.remove('has-img');}}});
+  setLang(st.lang||'it',document.querySelector(`.lang-btn[onclick="setLang('${st.lang||'it'}',this)"]`));
+  S.currentProjectId=p.id;S.currentProjectName=p.name;updateProjectBadge();
+  closeAM();
+  render();
+  await new Promise(r=>setTimeout(r,400));
+  generatePDF();
 }
 
 async function amOpenSaveCheckin(preselectedProjectId){
