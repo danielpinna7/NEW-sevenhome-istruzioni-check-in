@@ -1027,37 +1027,9 @@ async function generatePDF(){
 // PROJECTS — SAVE / LOAD / DELETE (GitHub API storage)
 // ======================================================
 const GH_REPO='danielpinna7/NEW-sevenhome-istruzioni-check-in';
-const GH_FILE='projects.json';
-const GH_TOKEN=(()=>{const a='ghp_a4a1c';const b='r6woKx2AL';const c='bbyXZXwLF';const d='VJHmVRQ3GemrQ';return a+b+c+d;})();
-let _ghSha=null;
-let _ghProjects=null;
-
-async function ghGet(){
-  if(_ghProjects!==null)return _ghProjects;
-  try{
-    const r=await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`,{headers:{'Authorization':'token '+GH_TOKEN,'Accept':'application/vnd.github.v3+json'}});
-    if(!r.ok){_ghProjects=[];return[];}
-    const d=await r.json();
-    _ghSha=d.sha;
-    _ghProjects=JSON.parse(atob(d.content.replace(/\n/g,'')));
-    return _ghProjects;
-  }catch(e){_ghProjects=[];return[];}
+async function getProjects(){
+  return await sbRest('projects?order=updated_at.desc&select=*') || [];
 }
-
-async function ghSet(list){
-  _ghProjects=list;
-  const content=btoa(unescape(encodeURIComponent(JSON.stringify(list,null,2))));
-  const body={message:'Update projects',content,sha:_ghSha||undefined};
-  if(!_ghSha)delete body.sha;
-  try{
-    const r=await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`,{method:'PUT',headers:{'Authorization':'token '+GH_TOKEN,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json();
-    if(d.content)_ghSha=d.content.sha;
-  }catch(e){console.error('GH save error',e);}
-}
-
-async function getProjects(){return ghGet();}
-async function setProjects(list){await ghSet(list);}
 
 const STORAGE_KEY='sh_projects';
 const FIELD_IDS = [
@@ -1085,31 +1057,30 @@ async function renderProjectList(){
     el.innerHTML = '<div class="proj-empty">Nessun progetto salvato.<br>Premi <strong>Salva</strong> per aggiungerne uno.</div>';
     return;
   }
-  el.innerHTML = list.slice().reverse().map(p => {
-    const date = new Date(p.savedAt).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  el.innerHTML = list.map(p => {
+    const date = p.updated_at ? new Date(p.updated_at).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    const lang = p.state?.lang || '';
     const isCurrent = p.id === S.currentProjectId;
+    const hasState = !!p.state;
     return `<div class="proj-card" id="card-${p.id}" style="${isCurrent?'border-color:#C9A84C;background:#fffdf5':''}">
       <div class="proj-card-icon">${isCurrent?'📂':'🏠'}</div>
       <div class="proj-card-info" id="card-info-${p.id}">
         <div class="proj-card-name">${esc(p.name)}</div>
-        <div class="proj-card-meta">${date} &nbsp;·&nbsp; ${p.lang}${isCurrent?' &nbsp;·&nbsp; <span style="color:#C9A84C;font-weight:600">in uso</span>':''}</div>
+        <div class="proj-card-meta">${date}${lang?' &nbsp;·&nbsp; '+lang:''}${isCurrent?' &nbsp;·&nbsp; <span style="color:#C9A84C;font-weight:600">in uso</span>':''}</div>
       </div>
       <div class="proj-card-actions">
-        <button class="proj-load-btn" onclick="loadProject('${p.id}')">${isCurrent?'Ricarica':'Carica'}</button>
-        <button class="proj-load-btn" style="background:#fff;color:#1A1A2E" onclick="startRename('${p.id}')" title="Rinomina">✏️</button>
+        ${hasState?`<button class="proj-load-btn" onclick="loadProject('${p.id}')">${isCurrent?'Ricarica':'Carica'}</button>`:''}
+        <button class="proj-load-btn" style="background:#fff;color:#1A1A2E" onclick="startRename('${p.id}','${esc(p.name)}')" title="Rinomina">✏️</button>
         <button class="proj-del-btn" onclick="deleteProject('${p.id}')" title="Elimina">🗑</button>
       </div>
     </div>`;
   }).join('');
 }
 
-async function startRename(id){
-  const list = await getProjects();
-  const p = list.find(x=>x.id===id);
-  if(!p) return;
+async function startRename(id, currentName){
   const infoEl = document.getElementById('card-info-'+id);
   infoEl.innerHTML = `
-    <input class="proj-rename-input" id="rename-inp-${id}" value="${esc(p.name)}" maxlength="60" onkeydown="if(event.key==='Enter')confirmRename('${id}');if(event.key==='Escape')renderProjectList()">
+    <input class="proj-rename-input" id="rename-inp-${id}" value="${esc(currentName||'')}" maxlength="60" onkeydown="if(event.key==='Enter')confirmRename('${id}');if(event.key==='Escape')renderProjectList()">
     <div style="display:flex;gap:6px;margin-top:6px">
       <button class="proj-rename-btn" onclick="confirmRename('${id}')">Salva nome</button>
       <button class="proj-rename-btn" style="background:#f0ede8;color:#666;border-color:#e0ddd8" onclick="renderProjectList()">Annulla</button>
@@ -1121,16 +1092,8 @@ async function confirmRename(id){
   const inp = document.getElementById('rename-inp-'+id);
   if(!inp) return;
   const newName = inp.value.trim() || 'Progetto senza nome';
-  const list = await getProjects();
-  const p = list.find(x=>x.id===id);
-  if(p){
-    p.name = newName;
-    await setProjects(list);
-    if(id === S.currentProjectId){
-      S.currentProjectName = newName;
-      updateProjectBadge();
-    }
-  }
+  await sbRest(`projects?id=eq.${id}`,{method:'PATCH',body:JSON.stringify({name:newName})});
+  if(id===S.currentProjectId){ S.currentProjectName=newName; updateProjectBadge(); }
   renderProjectList();
   showToast('Nome aggiornato ✓');
 }
@@ -1181,61 +1144,47 @@ async function confirmSave(update){
   FIELD_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) fields[id]=el.value; });
   const toggles = {};
   TOGGLE_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) toggles[id]=el.checked; });
+  const state = {lang:S.lang, logo:S.logo, photos:{...S.photos}, photoState:{...S.photoState}, fields, toggles};
 
   closeSaveDialog();
   showToast('Salvataggio in corso…');
-  let list = await getProjects();
-
-  if(update && S.currentProjectId){
-    const idx = list.findIndex(x=>x.id===S.currentProjectId);
-    if(idx !== -1){
-      list[idx] = { ...list[idx], name, savedAt: new Date().toISOString(), lang:S.lang, logo:S.logo, photos:{...S.photos}, photoState:{...S.photoState}, fields, toggles };
+  try{
+    if(update && S.currentProjectId){
+      await sbRest(`projects?id=eq.${S.currentProjectId}`,{method:'PATCH',body:JSON.stringify({name,state})});
       S.currentProjectName = name;
       updateProjectBadge();
-      await setProjects(list);
       showToast('Progetto aggiornato ✓');
-      return;
+    } else {
+      const by = sessionStorage.getItem('sh_user')||'team';
+      const rows = await sbRest('projects',{method:'POST',body:JSON.stringify({name,description:'',created_by:by,state})});
+      const proj = Array.isArray(rows)?rows[0]:rows;
+      S.currentProjectId = proj.id;
+      S.currentProjectName = proj.name;
+      updateProjectBadge();
+      showToast('Progetto salvato ✓');
     }
-  }
-
-  const project = {
-    id: String(Date.now()),
-    name,
-    savedAt: new Date().toISOString(),
-    lang: S.lang,
-    logo: S.logo,
-    photos: {...S.photos},
-    photoState: {...S.photoState},
-    fields,
-    toggles,
-  };
-  list.push(project);
-  await setProjects(list);
-  S.currentProjectId = project.id;
-  S.currentProjectName = project.name;
-  updateProjectBadge();
-  showToast('Progetto salvato ✓');
+  }catch(e){ alert('Errore salvataggio: '+e.message); }
 }
 
 async function loadProject(id){
   const list = await getProjects();
   const p = list.find(x=>x.id===id);
-  if(!p) return;
+  if(!p||!p.state) return;
+  const st = p.state;
 
   FIELD_IDS.forEach(fid=>{
     const el=document.getElementById(fid);
-    if(el && p.fields[fid]!==undefined) el.value=p.fields[fid];
+    if(el && st.fields && st.fields[fid]!==undefined) el.value=st.fields[fid];
   });
   TOGGLE_IDS.forEach(tid=>{
     const el=document.getElementById(tid);
-    if(el && p.toggles[tid]!==undefined) el.checked=p.toggles[tid];
+    if(el && st.toggles && st.toggles[tid]!==undefined) el.checked=st.toggles[tid];
   });
 
-  S.logo = p.logo || null;
-  S.photos = {...(p.photos||{})};
-  S.photoState = {...(p.photoState||p.photoPos||{})};
-  // Reset initialized flag so transforms are recomputed with live container sizes
-  Object.values(S.photoState).forEach(st=>{ if(st) st.initialized=true; });
+  S.logo = st.logo || null;
+  S.photos = {...(st.photos||{})};
+  S.photoState = {...(st.photoState||{})};
+  Object.values(S.photoState).forEach(s=>{ if(s) s.initialized=true; });
 
   const logoUp = document.getElementById('logo-up');
   const logoPrev = document.getElementById('logo-prev');
@@ -1257,7 +1206,7 @@ async function loadProject(id){
     }
   });
 
-  setLang(p.lang, document.querySelector(`.lang-btn[onclick="setLang('${p.lang}',this)"]`));
+  setLang(st.lang||'it', document.querySelector(`.lang-btn[onclick="setLang('${st.lang||'it'}',this)"]`));
 
   S.currentProjectId = p.id;
   S.currentProjectName = p.name;
@@ -1270,9 +1219,8 @@ async function loadProject(id){
 
 async function deleteProject(id){
   if(!confirm('Eliminare questo progetto?')) return;
-  const list = (await getProjects()).filter(x=>x.id!==id);
-  await setProjects(list);
-  if(S.currentProjectId === id) clearCurrentProject();
+  await amDeleteProject(id);
+  if(S.currentProjectId===id) clearCurrentProject();
   renderProjectList();
 }
 
@@ -1458,6 +1406,7 @@ async function amRenderList(){
   <div class="am-card-footer">
     <div class="am-card-count">📎 ${cnt} file</div>
     <div style="display:flex;gap:6px">
+      ${p.state?`<button class="am-card-open" style="background:#1A1A2E;color:#C9A84C" onclick="event.stopPropagation();amLoadInBuilder('${p.id}')">📂 Builder</button>`:''}
       <button class="am-card-open" onclick="event.stopPropagation();amOpenProject('${p.id}')">Apri →</button>
       <button class="am-card-del" onclick="event.stopPropagation();amConfirmDelProject('${p.id}','${esc(p.name)}')" title="Elimina">🗑</button>
     </div>
@@ -1502,6 +1451,7 @@ async function amRenderDetail(){
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
         Carica file
       </button>
+      ${p.state?`<button class="am-btn-dark" onclick="amLoadInBuilder('${p.id}')">📂 Carica nel builder</button>`:''}
       <button class="am-btn-gold" onclick="amOpenSaveCheckin('${p.id}')">
         💾 Salva check-in
       </button>
@@ -1616,6 +1566,12 @@ function amConfirmDelFile(id,name,storagePath){
 }
 
 // Save current check-in as PDF into a project
+async function amLoadInBuilder(id){
+  if(!confirm('Caricare questo progetto nel builder? I dati non salvati andranno persi.'))return;
+  closeAM();
+  await loadProject(id);
+}
+
 async function amOpenSaveCheckin(preselectedProjectId){
   // Load project list into select
   showToast('Caricamento progetti…');
