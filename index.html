@@ -910,15 +910,19 @@ function render(){
   const mapSrc=photo('mapPhoto');
   const mapsLink=v('f-maps');
   const captionHtml=`<div class="p-map-caption"><span>📍</span>&nbsp;${esc(t.cap)}</div>`;
-  mapEl.style.backgroundImage='';
   if(mapSrc){
-    const mImgStyle='display:block;width:100%;height:100%;object-fit:cover;object-position:center;pointer-events:none;position:relative;z-index:1';
+    mapEl.style.backgroundImage=`url('${mapSrc}')`;
+    mapEl.style.backgroundSize='cover';
+    mapEl.style.backgroundPosition='center';
     if(mapsLink){
-      mapEl.innerHTML=`${captionHtml}<img src="${mapSrc}" style="${mImgStyle}" alt="mappa"><a href="${esc(mapsLink)}" target="_blank" rel="noopener" style="position:absolute;inset:0;display:block;z-index:3"></a>`;
+      mapEl.innerHTML=`${captionHtml}<a href="${esc(mapsLink)}" target="_blank" rel="noopener" style="position:absolute;inset:0;display:block;z-index:3"></a>`;
     } else {
-      mapEl.innerHTML=`${captionHtml}<img src="${mapSrc}" style="${mImgStyle}" alt="mappa">`;
+      mapEl.innerHTML=captionHtml;
     }
   } else {
+    mapEl.style.backgroundImage='';
+    mapEl.style.backgroundSize='';
+    mapEl.style.backgroundPosition='';
     mapEl.innerHTML=`<div class="p-map-ph"><span style="font-size:36px">🗺️</span><span>Carica l'immagine della mappa</span></div>${captionHtml}`;
   }
 
