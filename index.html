@@ -299,9 +299,9 @@ textarea{resize:vertical;min-height:64px}
 /* ===== PAGE 6 – Info ===== */
 .p6-block{background:#F8F7F4;border:1px solid #e8e6e1;border-radius:12px;padding:16px 20px;margin-bottom:12px}
 .p6-block-ttl{font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-.p6-wifi-inner{display:flex;gap:16px;align-items:center}
-.p6-wifi-qr{width:90px;height:90px;flex-shrink:0;border-radius:8px;overflow:hidden;background:#e8e6e1;display:flex;align-items:center;justify-content:center;font-size:10px;color:#bbb;text-align:center}
-.p6-wifi-qr img{width:100%;height:100%;object-fit:cover}
+.p6-wifi-inner{display:flex;flex-direction:column;gap:12px}
+.p6-qr-cell .p-photo{height:200px}
+.p6-qr-cell .p-photo-empty{height:200px}
 .p6-wifi-fields{flex:1;display:flex;flex-direction:column;gap:8px}
 .p6-wifi-row{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e8e6e1;border-radius:8px;padding:8px 12px}
 .p6-wifi-lbl{font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;min-width:56px}
@@ -428,6 +428,7 @@ textarea{resize:vertical;min-height:64px}
           <button class="lang-btn" onclick="setLang('DE',this)">🇩🇪 DE</button>
           <button class="lang-btn" onclick="setLang('FR',this)">🇫🇷 FR</button>
           <button class="lang-btn" onclick="setLang('ES',this)">🇪🇸 ES</button>
+          <button class="lang-btn" onclick="setLang('SQ',this)">🇦🇱 SQ</button>
         </div>
       </div>
     </div>
@@ -648,8 +649,8 @@ textarea{resize:vertical;min-height:64px}
 
     <div class="fg-group">
       <h4>🔗 Link Informazioni Soggiorno</h4>
-      <div class="fg"><label class="lbl">URL</label><input type="url" id="p6lurl" placeholder="https://..." oninput="render()"></div>
-      <div class="fg"><label class="lbl">Etichetta</label><input type="text" id="p6llbl" placeholder="es. Guida completa al soggiorno" oninput="render()"></div>
+      <div id="p6-links-form"></div>
+      <button class="btn-sec" style="margin-top:6px;font-size:12px;padding:6px 14px" onclick="addP6Link()">+ Aggiungi link</button>
     </div>
   </div>
 
@@ -824,6 +825,18 @@ const T = {
       {icon:'🚪',title:'Acceso al apartamento',n:4},
       {icon:'🅿️',title:'Aparcamiento',n:5},
       {icon:'📡',title:'Info útil',n:6}
+    ]},
+  SQ:{flag:'🇦🇱',name:'Shqip',idx:'Indeksi',pg:'Faqja',pdf:'Gjenero PDF',
+    s1:'Hapi 1',s2:'Hapi 2',notes:'Shënime',links:'Lidhje të dobishme',
+    cap:'Klikoni imazhin për të hapur Google Maps',
+    wifi:'WiFi',wifiNet:'Rrjeti',wifiPass:'Fjalëkalimi',copy:'Kopjo',copied:'Kopjuar!',
+    phones:'Numra të dobishëm',stayInfo:'Informacione qëndrimi',wa:'WhatsApp',
+    pages:[
+      {icon:'🏢',title:'Hyrja në ndërtesë',n:2},
+      {icon:'🔑',title:'Marrja e çelësave',n:3},
+      {icon:'🚪',title:'Hyrja në apartament',n:4},
+      {icon:'🅿️',title:'Parkimi',n:5},
+      {icon:'📡',title:'Informacione të dobishme',n:6}
     ]}
 };
 
@@ -835,6 +848,7 @@ const S = {
   logo:null,
   photos:{},
   photoState:{},
+  p6links:[],
   currentProjectId: null,
   currentProjectName: null,
 };
@@ -1084,7 +1098,7 @@ function render(){
     if(cfg.isInfo){
       const ssid=v('p6ssid'), pass=v('p6pass');
       const qrSrc=photo('p6qr');
-      const lurl6=v('p6lurl'), llbl6=v('p6llbl');
+      const activeLinks=(S.p6links||[]).filter(lk=>lk.url);
       const phones=[[v('p6t1n'),v('p6t1p')],[v('p6t2n'),v('p6t2p')],[v('p6t3n'),v('p6t3p')],[v('p6t4n'),v('p6t4p')]].filter(([n,p])=>n||p);
       const waNum=p=>p.replace(/[\s\-\+\(\)]/g,'');
       return`<div class="pp" id="pp-p6">
@@ -1097,7 +1111,7 @@ function render(){
     ${ssid||pass||qrSrc?`<div class="p6-block">
       <div class="p6-block-ttl">📶 ${t.wifi}</div>
       <div class="p6-wifi-inner">
-        ${qrSrc?`<div class="p6-wifi-qr"><img src="${qrSrc}" alt="QR"></div>`:`<div class="p6-wifi-qr" style="font-size:9px;padding:4px">QR<br>WiFi</div>`}
+        <div class="p6-qr-cell">${photoCell('p6qr','QR WiFi')}</div>
         <div class="p6-wifi-fields">
           ${ssid?`<div class="p6-wifi-row"><span class="p6-wifi-lbl">${t.wifiNet}</span><span class="p6-wifi-val">${esc(ssid)}</span></div>`:''}
           ${pass?`<div class="p6-wifi-row"><span class="p6-wifi-lbl">${t.wifiPass}</span><span class="p6-wifi-val" id="p6-pass-val">${esc(pass)}</span><button class="p6-copy-btn" onclick="copyWifiPass()" title="${t.copy}">📋</button></div>`:''}
@@ -1116,11 +1130,14 @@ function render(){
       </div>`).join('')}
     </div>`:''}
 
-    ${lurl6?`<a class="p6-stay-link" href="${esc(lurl6)}" target="_blank" rel="noopener">
-      <span class="p6-stay-icon">🔗</span>
-      <span class="p6-stay-lbl">${esc(llbl6||lurl6)}</span>
-      <span class="p6-stay-arr">→</span>
-    </a>`:''}
+    ${activeLinks.length?`<div class="p6-block">
+      <div class="p6-block-ttl">🔗 ${t.stayInfo}</div>
+      ${activeLinks.map(lk=>`<a class="p6-stay-link" href="${esc(lk.url)}" target="_blank" rel="noopener" style="margin-bottom:8px">
+        <span class="p6-stay-icon">🔗</span>
+        <span class="p6-stay-lbl">${esc(lk.label||lk.url)}</span>
+        <span class="p6-stay-arr">→</span>
+      </a>`).join('')}
+    </div>`:''}
 
     <div class="p-footer" style="margin-top:auto">
       <span class="p-footer-brand">SEVENHOME PROPERTIES</span>
@@ -1151,6 +1168,27 @@ function render(){
   </div>
 </div>`;
   }).join('');
+}
+
+function renderP6LinksForm(){
+  const el=document.getElementById('p6-links-form');
+  if(!el)return;
+  el.innerHTML=S.p6links.map((lk,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <input type="url" placeholder="https://..." value="${esc(lk.url||'')}" oninput="S.p6links[${i}].url=this.value;render()" style="flex:1;font-family:'Inter',sans-serif;font-size:13px;border:1.5px solid #e0ddd8;border-radius:8px;padding:8px 10px;outline:none;color:#1A1A2E">
+      <input type="text" placeholder="Etichetta" value="${esc(lk.label||'')}" oninput="S.p6links[${i}].label=this.value;render()" style="flex:1;font-family:'Inter',sans-serif;font-size:13px;border:1.5px solid #e0ddd8;border-radius:8px;padding:8px 10px;outline:none;color:#1A1A2E">
+      <button onclick="removeP6Link(${i})" style="width:30px;height:36px;border:1.5px solid #e8e6e1;border-radius:8px;background:#fff;color:#bbb;cursor:pointer;font-size:14px;flex-shrink:0" title="Rimuovi">✕</button>
+    </div>`).join('');
+}
+function addP6Link(){
+  S.p6links.push({url:'',label:''});
+  renderP6LinksForm();
+  render();
+}
+function removeP6Link(i){
+  S.p6links.splice(i,1);
+  renderP6LinksForm();
+  render();
 }
 
 function copyWifiPass(){
@@ -1213,7 +1251,7 @@ const FIELD_IDS = [
   'p3s1lt','p3s1rt','p3s2lt','p3s2rt','p3notes',
   'p4s1lt','p4s1rt','p4s2lt','p4s2rt','p4notes',
   'p5s1lt','p5s1rt','p5s2lt','p5s2rt','p5notes',
-  'p6ssid','p6pass','p6lurl','p6llbl',
+  'p6ssid','p6pass',
   'p6t1n','p6t1p','p6t2n','p6t2p','p6t3n','p6t3p','p6t4n','p6t4p',
 ];
 const TOGGLE_IDS = ['tog-p2','tog-p3','tog-p4','tog-p5','tog-p6'];
@@ -1321,7 +1359,7 @@ async function confirmSave(update){
   FIELD_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) fields[id]=el.value; });
   const toggles = {};
   TOGGLE_IDS.forEach(id=>{ const el=document.getElementById(id); if(el) toggles[id]=el.checked; });
-  const state = {lang:S.lang, logo:S.logo, photos:{...S.photos}, photoState:{...S.photoState}, fields, toggles};
+  const state = {lang:S.lang, logo:S.logo, photos:{...S.photos}, photoState:{...S.photoState}, fields, toggles, p6links:[...(S.p6links||[])]};
 
   closeSaveDialog();
   showToast('Salvataggio in corso…');
@@ -1362,6 +1400,8 @@ async function loadProject(id){
   S.photos = {...(st.photos||{})};
   S.photoState = {...(st.photoState||{})};
   Object.values(S.photoState).forEach(s=>{ if(s) s.initialized=true; });
+  S.p6links = [...(st.p6links||[])];
+  renderP6LinksForm();
 
   const logoUp = document.getElementById('logo-up');
   const logoPrev = document.getElementById('logo-prev');
@@ -1759,6 +1799,7 @@ async function amGeneratePDF(id){
   S.photos={...(st.photos||{})};
   S.photoState={...(st.photoState||{})};
   Object.values(S.photoState).forEach(s=>{if(s)s.initialized=true;});
+  S.p6links=[...(st.p6links||[])];
   const logoUp=document.getElementById('logo-up');const logoPrev=document.getElementById('logo-prev');
   if(logoUp&&logoPrev){if(S.logo){logoPrev.src=S.logo;logoUp.classList.add('has-img');}else{logoPrev.src='';logoUp.classList.remove('has-img');}}
   document.querySelectorAll('.photo-up').forEach(wrap=>{const inp=wrap.querySelector('input[type=file]');if(!inp)return;const oc=inp.getAttribute('onchange')||'';const m=oc.match(/handlePhoto\(event,'([^']+)'\)/);if(!m)return;const key=m[1];const prev=wrap.querySelector('.up-prev');if(prev){if(S.photos[key]){prev.src=S.photos[key];wrap.classList.add('has-img');}else{prev.src='';wrap.classList.remove('has-img');}}});
@@ -1837,7 +1878,7 @@ async function _buildPDF(onMsg){
       const r=elRect(a,el);
       if(r.w>0&&r.h>0)annotations.push({x:r.x*sX,y:r.y*sY,w:r.w*sX,h:r.h*sY,url:href});
     });
-    const canvas=await html2canvas(el,{scale:3,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',width:PX_W,height:PX_H,logging:false});
+    const canvas=await html2canvas(el,{scale:3,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',width:PX_W,height:PX_H,logging:false,ignoreElements:el=>el.classList&&el.classList.contains('p6-copy-btn')});
     const imgData=canvas.toDataURL('image/jpeg',0.95);
     if(i>0)pdf.addPage();
     pdf.addImage(imgData,'JPEG',0,0,A4W,A4H);
