@@ -948,15 +948,31 @@ function toggleSec(hd){
 // ======================================================
 // IMAGE UPLOAD
 // ======================================================
+async function uploadPhotoToStorage(dataUrl, key){
+  try{
+    const res=await fetch(dataUrl);
+    const blob=await res.blob();
+    const path=`photos/${Date.now()}-${key}.jpg`;
+    await sbStorage('POST',path,blob,blob.type||'image/jpeg');
+    return sbFileUrl(path);
+  }catch(e){
+    console.warn('Storage upload failed, keeping local data:',e);
+    return null;
+  }
+}
+
 function handleLogo(ev){
   const f=ev.target.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=e=>{
-    S.logo=e.target.result;
+  r.onload=async e=>{
+    const dataUrl=e.target.result;
+    S.logo=dataUrl;
     const prev=document.getElementById('logo-prev');
-    prev.src=S.logo;
+    prev.src=dataUrl;
     ev.target.closest('.photo-up').classList.add('has-img');
     render();
+    const url=await uploadPhotoToStorage(dataUrl,'logo');
+    if(url) S.logo=url;
   };
   r.readAsDataURL(f);
 }
@@ -964,11 +980,14 @@ function handleLogo(ev){
 function handlePhoto(ev,key){
   const f=ev.target.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=e=>{
-    S.photos[key]=e.target.result;
+  r.onload=async e=>{
+    const dataUrl=e.target.result;
+    S.photos[key]=dataUrl;
     const prev=document.getElementById(key+'-prev');
-    if(prev){prev.src=S.photos[key];ev.target.closest('.photo-up').classList.add('has-img');}
+    if(prev){prev.src=dataUrl;ev.target.closest('.photo-up').classList.add('has-img');}
     render();
+    const url=await uploadPhotoToStorage(dataUrl,key);
+    if(url) S.photos[key]=url;
   };
   r.readAsDataURL(f);
 }
