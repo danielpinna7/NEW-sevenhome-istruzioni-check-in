@@ -1134,7 +1134,7 @@ function render(){
     ${activeLinks.length?`<div class="p6-block">
       <div class="p6-block-ttl">🔗 ${t.stayInfo}</div>
       ${activeLinks.map(lk=>`<a class="p6-stay-link" href="${esc(lk.url)}" target="_blank" rel="noopener" style="margin-bottom:8px">
-        <span class="p6-stay-icon">🔗</span>
+        <span class="p6-stay-icon">${esc(lk.emoji||'🔗')}</span>
         <span class="p6-stay-lbl">${esc(lk.label||lk.url)}</span>
         <span class="p6-stay-arr">→</span>
       </a>`).join('')}
@@ -1176,6 +1176,7 @@ function renderP6LinksForm(){
   if(!el)return;
   el.innerHTML=S.p6links.map((lk,i)=>`
     <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <input type="text" placeholder="🔗" value="${esc(lk.emoji||'')}" oninput="S.p6links[${i}].emoji=this.value;render()" style="width:46px;flex-shrink:0;font-family:'Inter',sans-serif;font-size:18px;border:1.5px solid #e0ddd8;border-radius:8px;padding:6px 8px;outline:none;text-align:center" title="Emoji">
       <input type="url" placeholder="https://..." value="${esc(lk.url||'')}" oninput="S.p6links[${i}].url=this.value;render()" style="flex:1;font-family:'Inter',sans-serif;font-size:13px;border:1.5px solid #e0ddd8;border-radius:8px;padding:8px 10px;outline:none;color:#1A1A2E">
       <input type="text" placeholder="Etichetta" value="${esc(lk.label||'')}" oninput="S.p6links[${i}].label=this.value;render()" style="flex:1;font-family:'Inter',sans-serif;font-size:13px;border:1.5px solid #e0ddd8;border-radius:8px;padding:8px 10px;outline:none;color:#1A1A2E">
       <button onclick="removeP6Link(${i})" style="width:30px;height:36px;border:1.5px solid #e8e6e1;border-radius:8px;background:#fff;color:#bbb;cursor:pointer;font-size:14px;flex-shrink:0" title="Rimuovi">✕</button>
